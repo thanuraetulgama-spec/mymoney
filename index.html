@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="My Money">
+<meta name="theme-color" content="#0f3d5e">
+<title>My Money</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,system-ui,sans-serif;background:#f2f4f7;color:#1c2530;padding-bottom:80px}
+header{background:#0f3d5e;color:#fff;padding:calc(14px + env(safe-area-inset-top)) 16px 14px}header h1{margin:0;font-size:20px}
+main{padding:12px}.card{background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px #0001}
+h2{font-size:16px;margin:0 0 10px}.row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #eee}
+.row:last-child{border:0}.muted{color:#6b7785;font-size:13px}.neg{color:#c0392b}.pos{color:#1e8449}
+.kpi{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center}.kpi div{background:#f6f8fa;border-radius:10px;padding:8px}.kpi b{display:block;font-size:15px}
+button{background:#0f3d5e;color:#fff;border:0;border-radius:10px;padding:11px 14px;font-size:15px}button.sec{background:#e6ebf0;color:#0f3d5e}button.del{background:#fdecea;color:#c0392b}
+input,select,textarea{width:100%;padding:10px;border:1px solid #ccd3da;border-radius:10px;font-size:16px;margin:4px 0 10px;background:#fff}
+textarea{min-height:140px}label{font-size:13px;color:#4a5560}.btns{display:flex;gap:8px;flex-wrap:wrap}
+nav{position:fixed;bottom:0;left:0;right:0;background:#fff;display:flex;border-top:1px solid #dde;padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;background:none;color:#6b7785;border-radius:0;padding:12px 0;font-size:13px}nav button.on{color:#0f3d5e;font-weight:600}
+.tab{display:none}.tab.on{display:block}.badge{background:#c0392b;color:#fff;border-radius:9px;padding:1px 6px;font-size:11px}
+.pend{border-left:4px solid #e67e22}.warn{background:#fff6e5;border-radius:10px;padding:8px;font-size:13px;margin-bottom:8px}
+</style></head><body>
+<header><h1>My Money</h1><div class="muted" style="color:#cfe0ee" id="hdrSub"></div></header>
+<main>
+<!-- HOME -->
+<section class="tab on" id="t-home">
+ <div class="card"><h2>This month</h2><div class="kpi"><div>Income<b class="pos" id="kInc"></b></div><div>Expenses<b class="neg" id="kExp"></b></div><div>Net<b id="kNet"></b></div></div>
+ <p class="muted">Amounts shown in QAR. LKR is converted at the rate in Settings.</p></div>
+ <div class="card" id="pendCard" style="display:none"><h2>Bank SMS to review <span class="badge" id="pendN"></span></h2><div id="pendList"></div></div>
+ <div class="card"><h2>Accounts</h2><div id="accList"></div></div>
+ <div class="card"><h2>Expenses by category (this month)</h2><div id="catList"></div></div>
+</section>
+<!-- SMS -->
+<section class="tab" id="t-sms">
+ <div class="card"><h2>Add from bank SMS</h2>
+ <p class="muted">Paste one or more QNB purchase or salary messages. Login and OTP messages are ignored. Each purchase is added to "Review" before it is saved.</p>
+ <textarea id="smsIn" placeholder="Your credit card has been used for a purchase..."></textarea>
+ <div class="btns"><button onclick="pasteClip()">Paste from clipboard</button><button class="sec" onclick="readSMS(smsIn.value);smsIn.value=''">Read messages</button></div>
+ <div id="smsMsg" class="muted" style="margin-top:8px"></div></div>
+</section>
+<!-- ADD -->
+<section class="tab" id="t-add">
+ <div class="card"><h2 id="fTitle">Add transaction</h2>
+ <input type="hidden" id="fId">
+ <label>Type</label><select id="fType" onchange="toggleTo()"><option>Expense</option><option>Income</option><option>Transfer</option></select>
+ <label>Account</label><select id="fAcc"></select>
+ <div id="toWrap" style="display:none"><label>To account</label><select id="fTo"></select></div>
+ <label>Amount</label><input id="fAmt" type="number" step="0.01" inputmode="decimal">
+ <label>Currency</label><select id="fCur"><option>QAR</option><option>LKR</option></select>
+ <label>Category</label><select id="fCat"></select>
+ <label>Date</label><input id="fDate" type="date">
+ <label>Description</label><input id="fDesc">
+ <div class="btns"><button onclick="saveTx()">Save</button><button class="sec" onclick="clearForm()">Clear</button><button class="del" id="fDel" style="display:none" onclick="delTx()">Delete</button></div></div>
+</section>
+<!-- ACTIVITY -->
+<section class="tab" id="t-act"><div class="card"><h2>Activity</h2><div id="actList"></div></div></section>
+<!-- SETTINGS -->
+<section class="tab" id="t-set">
+ <div class="card"><h2>Accounts</h2><div id="accEdit"></div>
+ <label>New account name</label><input id="naName" placeholder="e.g. Commercial Bank LKR">
+ <div class="btns"><select id="naType" style="flex:1"><option>Bank</option><option>Credit card</option><option>Cash</option></select><select id="naCur" style="flex:1"><option>QAR</option><option>LKR</option></select></div>
+ <label>Opening balance (credit card: enter amount owed as negative)</label><input id="naOpen" type="number" step="0.01" value="0">
+ <label>SMS card code (optional, e.g. MDEBIT3)</label><input id="naCode">
+ <button onclick="addAcc()">Add account</button></div>
+ <div class="card"><h2>Exchange rate</h2><label>1 QAR = LKR</label><input id="rate" type="number" step="0.01" onchange="S.rate=+this.value;save();render()"></div>
+ <div class="card"><h2>Merchant categories</h2><p class="muted">One per line: keyword = category</p><textarea id="rules" onchange="saveRules()"></textarea></div>
+ <div class="card"><h2>Backup</h2><p class="muted">Data is stored only in this browser on this phone. Export a backup regularly.</p>
+ <div class="btns"><button onclick="exportData()">Export backup</button><button class="sec" onclick="impF.click()">Import backup</button></div>
+ <input type="file" id="impF" accept=".json" style="display:none" onchange="importData(this.files[0])"></div>
+</section>
+</main>
+<nav><button class="on" data-t="home">Home</button><button data-t="sms">Bank SMS</button><button data-t="add">Add</button><button data-t="act">Activity</button><button data-t="set">Settings</button></nav>
+<script>
+const KEY='mymoney_v3';
+const CATS={Expense:['Food & dining','Groceries','Telecom & internet','Utilities','Transport & fuel','Shopping','Health','Rent','Family support','Education','Entertainment','Fees & charges','Other'],Income:['Salary','Bonus','Refund','Interest','Other income'],Transfer:['Transfer','Card payment']};
+const DEF={rate:82,accounts:[
+ {id:'a1',name:'QNB Debit (MDEBIT3)',type:'Bank',cur:'QAR',open:0,code:'MDEBIT3'},
+ {id:'a2',name:'QNB Credit (VISA2)',type:'Credit card',cur:'QAR',open:0,code:'VISA2'},
+ {id:'a4',name:'QNB Current (CURRENT1)',type:'Bank',cur:'QAR',open:0,code:'CURRENT1'},
+ {id:'a3',name:'Cash',type:'Cash',cur:'QAR',open:0,code:''}],
+ tx:[],pending:[],seen:[],
+ rules:'talabat=Food & dining\nsnoonu=Food & dining\nkeeta=Food & dining\nrestaurant=Food & dining\ncafe=Food & dining\ncarrefour=Groceries\nlulu=Groceries\nmonoprix=Groceries\nal meera=Groceries\nooredoo=Telecom & internet\nvodafone=Telecom & internet\nkahramaa=Utilities\nwoqod=Transport & fuel\nuber=Transport & fuel\nkarwa=Transport & fuel\npharmacy=Health\nhospital=Health'};
+let S=JSON.parse(localStorage.getItem(KEY)||'null')||DEF;
+if(!S.accounts.some(a=>(a.code||'').toUpperCase()==='CURRENT1'))S.accounts.unshift({id:'a4',name:'QNB Current (CURRENT1)',type:'Bank',cur:'QAR',open:0,code:'CURRENT1'});
+const save=()=>localStorage.setItem(KEY,JSON.stringify(S));
+const $=id=>document.getElementById(id);
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const fmt=(n,c='QAR')=>c+' '+(+n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const toQAR=(a,c)=>c==='LKR'?a/(S.rate||1):a;
+const today=()=>new Date().toISOString().slice(0,10);
+const acc=id=>S.accounts.find(a=>a.id===id);
+
+/* ---------- QNB SMS parser ---------- */
+function parseSMS(text){
+ const out=[];
+ // split into individual messages at each "Your ... card has been used"
+ const parts=text.replace(/\r/g,'').split(/(?=Your\s+(?:debit|credit)\s+card\s+has\s+been\s+used|Your\s+salary\s+is\s+credited)/i);
+ for(const p of parts){
+  if(/Your\s+salary\s+is\s+credited/i.test(p)){
+   const acc=(p.match(/Account\s*number:\s*([A-Z0-9*]+)/i)||[])[1]||'';
+   const a=p.match(/Salary\s*amount:\s*([A-Z]{3})\s*([\d,]+(?:\.\d+)?)/i);
+   const d=p.match(/Value\s*Date:\s*(\d{2})[-\/](\d{2})[-\/](\d{4})/i);
+   const b=p.match(/Available\s+Balance:\s*(?:[A-Z]{3}\s*)?([\d,]+(?:\.\d+)?)/i);
+   if(a) out.push({kind:'salary',type:'Income',card:acc,cur:a[1].toUpperCase(),amount:+a[2].replace(/,/g,''),merchant:'Salary',
+    date:d?`${d[3]}-${d[2]}-${d[1]}`:null,balance:b?+b[1].replace(/,/g,''):null});
+   continue;
+  }
+  const m=p.match(/Your\s+(debit|credit)\s+card\s+has\s+been\s+used\s+for\s+a\s+(\w+)/i);
+  if(!m) continue;
+  const g=re=>{const r=p.match(re);return r?r[1].trim():''};
+  const card=g(/Card\s*number:\s*([A-Z0-9*]+)/i);
+  const amt=p.match(/Amount:\s*([A-Z]{3})\s*([\d,]+(?:\.\d+)?)/i);
+  const loc=g(/Location:\s*([^\n]+)/i);
+  const bal=p.match(/Available\s+balance:\s*([A-Z]{3})\s*([\d,]+(?:\.\d+)?)/i);
+  if(!amt) continue;
+  out.push({type:'Expense',kind:m[1].toLowerCase(),action:m[2].toLowerCase(),card,cur:amt[1].toUpperCase(),amount:+amt[2].replace(/,/g,''),
+   merchant:loc,balance:bal?+bal[2].replace(/,/g,''):null,raw:p.trim().slice(0,400)});
+ }
+ return out;
+}
+function guessCat(merchant){
+ const s=(merchant||'').toLowerCase();
+ for(const line of S.rules.split('\n')){const [k,v]=line.split('=');if(k&&v&&s.includes(k.trim().toLowerCase()))return v.trim();}
+ return 'Other';
+}
+function readSMS(text){
+ const found=parseSMS(text||'');let added=0,dup=0;
+ for(const f of found){
+  const sig=[f.card,f.amount,f.merchant,f.balance].join('|');
+  if(S.seen.includes(sig)){dup++;continue;}
+  S.seen.push(sig);if(S.seen.length>500)S.seen.shift();
+  let a=S.accounts.find(x=>x.code&&x.code.toUpperCase()===f.card.toUpperCase());
+  if(!a) a=S.accounts.find(x=>f.kind==='credit'?x.type==='Credit card':x.type==='Bank')||S.accounts[0];
+  S.pending.push({id:uid(),date:f.date||today(),type:f.type,acc:a.id,amount:f.amount,cur:f.cur,cat:f.type==='Income'?'Salary':guessCat(f.merchant),desc:f.merchant,
+   note:(f.kind==='salary'?`salary credit · account ${f.card} · value date ${f.date||'n/a'}`:`${f.kind} card ${f.card}`)+(f.balance!=null?` · bank balance ${fmt(f.balance,f.cur)}`:'')});
+  added++;
+ }
+ save();render();
+ $('smsMsg').textContent=found.length?`${added} transaction(s) added to review`+(dup?`, ${dup} duplicate(s) skipped`:'')+'.':'No QNB purchase or salary message found (login/OTP messages are ignored).';
+ if(added) show('home');
+}
+async function pasteClip(){try{const t=await navigator.clipboard.readText();$('smsIn').value=t;readSMS(t);$('smsIn').value='';}catch(e){$('smsMsg').textContent='Clipboard access was blocked. Long-press the box and choose Paste.';}}
+function approve(id){const i=S.pending.findIndex(p=>p.id===id);const p=S.pending[i];
+ p.acc=$('pa_'+id).value;p.cat=$('pc_'+id).value;p.amount=+$('pm_'+id).value;S.tx.push(p);S.pending.splice(i,1);save();render();}
+function reject(id){S.pending=S.pending.filter(p=>p.id!==id);save();render();}
+
+/* ---------- balances & render ---------- */
+function balance(a){let b=+a.open||0;for(const t of S.tx){
+ const amt=t.cur===a.cur?t.amount:(a.cur==='QAR'?toQAR(t.amount,t.cur):t.amount*S.rate);
+ if(t.acc===a.id) b+= t.type==='Income'?amt:-amt;
+ if(t.type==='Transfer'&&t.to===a.id) b+=amt;}return b;}
+function opts(sel,list,val){sel.innerHTML=list.map(o=>`<option ${o==val?'selected':''}>${o}</option>`).join('');}
+function accOpts(val){return S.accounts.map(a=>`<option value="${a.id}" ${a.id===val?'selected':''}>${a.name}</option>`).join('');}
+function render(){
+ const ym=today().slice(0,7);let inc=0,exp=0;const cat={};
+ for(const t of S.tx){if(!t.date.startsWith(ym))continue;const q=toQAR(t.amount,t.cur);
+  if(t.type==='Income')inc+=q;if(t.type==='Expense'){exp+=q;cat[t.cat]=(cat[t.cat]||0)+q;}}
+ $('kInc').textContent=fmt(inc).replace('QAR ','');$('kExp').textContent=fmt(exp).replace('QAR ','');
+ $('kNet').textContent=fmt(inc-exp).replace('QAR ','');$('kNet').className=inc-exp<0?'neg':'pos';
+ $('hdrSub').textContent=new Date().toLocaleDateString('en-GB',{month:'long',year:'numeric'});
+ $('accList').innerHTML=S.accounts.map(a=>{const b=balance(a);return `<div class="row"><div>${a.name}<div class="muted">${a.type}</div></div><b class="${b<0?'neg':''}">${fmt(b,a.cur)}</b></div>`}).join('');
+ const cs=Object.entries(cat).sort((a,b)=>b[1]-a[1]);
+ $('catList').innerHTML=cs.length?cs.map(([k,v])=>`<div class="row"><span>${k}</span><span>${fmt(v)} <span class="muted">${Math.round(v/exp*100)}%</span></span></div>`).join(''):'<p class="muted">No expenses yet.</p>';
+ $('pendCard').style.display=S.pending.length?'block':'none';$('pendN').textContent=S.pending.length;
+ $('pendList').innerHTML=S.pending.map(p=>`<div class="card pend"><b class="${p.type==='Income'?'pos':''}">${p.type==='Income'?'＋ ':''}${p.desc||'Purchase'}</b><div class="muted">${p.note}</div>
+  <label>Amount (${p.cur})</label><input id="pm_${p.id}" type="number" step="0.01" value="${p.amount}">
+  <label>Account</label><select id="pa_${p.id}">${accOpts(p.acc)}</select>
+  <label>Category</label><select id="pc_${p.id}">${CATS[p.type||'Expense'].map(c=>`<option ${c===p.cat?'selected':''}>${c}</option>`).join('')}</select>
+  <div class="btns"><button onclick="approve('${p.id}')">Save</button><button class="del" onclick="reject('${p.id}')">Discard</button></div></div>`).join('');
+ const tx=[...S.tx].sort((a,b)=>b.date.localeCompare(a.date));
+ $('actList').innerHTML=tx.length?tx.map(t=>`<div class="row" onclick="editTx('${t.id}')"><div>${t.desc||t.cat}<div class="muted">${t.date} · ${t.cat} · ${(acc(t.acc)||{}).name||''}</div></div><b class="${t.type==='Income'?'pos':t.type==='Expense'?'neg':''}">${t.type==='Expense'?'-':''}${fmt(t.amount,t.cur)}</b></div>`).join(''):'<p class="muted">No transactions yet.</p>';
+ $('fAcc').innerHTML=accOpts($('fAcc').value);$('fTo').innerHTML=accOpts($('fTo').value);
+ $('accEdit').innerHTML=S.accounts.map(a=>`<div class="row"><div>${a.name}<div class="muted">${a.type} · ${a.cur}${a.code?' · SMS code '+a.code:''}</div>
+  <label>Opening balance</label><input type="number" step="0.01" value="${a.open}" onchange="setOpen('${a.id}',this.value)"></div>
+  <button class="del" onclick="delAcc('${a.id}')">✕</button></div>`).join('');
+ $('rate').value=S.rate;$('rules').value=S.rules;
+}
+function toggleTo(){const t=$('fType').value;$('toWrap').style.display=t==='Transfer'?'block':'none';opts($('fCat'),CATS[t]);}
+function clearForm(){$('fId').value='';$('fAmt').value='';$('fDesc').value='';$('fDate').value=today();$('fType').value='Expense';toggleTo();$('fDel').style.display='none';$('fTitle').textContent='Add transaction';}
+function saveTx(){const amt=+$('fAmt').value;if(!amt){alert('Enter an amount');return;}
+ const t={id:$('fId').value||uid(),type:$('fType').value,acc:$('fAcc').value,to:$('fTo').value,amount:amt,cur:$('fCur').value,cat:$('fCat').value,date:$('fDate').value||today(),desc:$('fDesc').value};
+ S.tx=S.tx.filter(x=>x.id!==t.id);S.tx.push(t);save();clearForm();render();show('home');}
+function editTx(id){const t=S.tx.find(x=>x.id===id);show('add');$('fId').value=t.id;$('fType').value=t.type;toggleTo();
+ $('fAcc').value=t.acc;$('fTo').value=t.to||'';$('fAmt').value=t.amount;$('fCur').value=t.cur;$('fCat').value=t.cat;$('fDate').value=t.date;$('fDesc').value=t.desc||'';
+ $('fDel').style.display='inline-block';$('fTitle').textContent='Edit transaction';}
+function delTx(){if(!confirm('Delete this transaction?'))return;S.tx=S.tx.filter(x=>x.id!==$('fId').value);save();clearForm();render();show('act');}
+function addAcc(){const n=$('naName').value.trim();if(!n)return;S.accounts.push({id:uid(),name:n,type:$('naType').value,cur:$('naCur').value,open:+$('naOpen').value||0,code:$('naCode').value.trim()});
+ $('naName').value='';$('naCode').value='';$('naOpen').value=0;save();render();}
+function setOpen(id,v){acc(id).open=+v||0;save();render();}
+function delAcc(id){if(S.tx.some(t=>t.acc===id||t.to===id)){alert('This account has transactions. Delete them first.');return;}if(confirm('Delete account?')){S.accounts=S.accounts.filter(a=>a.id!==id);save();render();}}
+function saveRules(){S.rules=$('rules').value;save();}
+function exportData(){const b=new Blob([JSON.stringify(S,null,1)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='mymoney-backup-'+today()+'.json';a.click();}
+function importData(f){if(!f)return;const r=new FileReader();r.onload=()=>{try{S=JSON.parse(r.result);save();render();alert('Backup restored.');}catch(e){alert('Invalid backup file.');}};r.readAsText(f);}
+function show(t){document.querySelectorAll('.tab').forEach(s=>s.classList.toggle('on',s.id==='t-'+t));document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));window.scrollTo(0,0);}
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>show(b.dataset.t));
+clearForm();render();
+/* Shortcuts hand-off: ...MyMoney_iPhone.html#sms=<encoded message> */
+(function(){const h=location.hash;if(h.startsWith('#sms=')){readSMS(decodeURIComponent(h.slice(5)));history.replaceState(null,'',location.pathname);}})();
+</script></body></html>
